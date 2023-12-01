@@ -1,94 +1,102 @@
-// 1. Install dependencies DONE
-// 2. Import dependencies DONE
-// 3. Setup webcam and canvas DONE
-// 4. Define references to those DONE
-// 5. Load posenet DONE
-// 6. Detect function DONE
-// 7. Drawing utilities from tensorflow DONE
-// 8. Draw functions DONE
-import { drawPoint } from "./utilities";
-
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import "./App.css";
-import * as tf from "@tensorflow/tfjs";
 import * as posenet from "@tensorflow-models/posenet";
 import Webcam from "react-webcam";
 import { drawKeypoints, drawSkeleton } from "./utilities";
+import '@tensorflow/tfjs';
+
 
 function App() {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
 
-  //  Load posenet
-  const runPosenet = async () => {
-    const net = await posenet.load({
-      inputResolution: { width: 640, height: 480 },
-      scale: 0.8,
-    });
-    //
-    setInterval(() => {
-      detect(net);
-    }, 100);
-  };
+  useEffect(() => {
+    const runPosenet = async () => {
+      const net = await posenet.load({
+        inputResolution: { width: 640, height: 480 },
+        scale: 0.8,
+      });
 
-  const detect = async (net) => {
-    if (
-      typeof webcamRef.current !== "undefined" &&
-      webcamRef.current !== null &&
-      webcamRef.current.video.readyState === 4
-    ) {
-      // Get Video Properties
-      const video = webcamRef.current.video;
-      const videoWidth = webcamRef.current.video.videoWidth;
-      const videoHeight = webcamRef.current.video.videoHeight;
+      setInterval(() => {
+        detect(net);
+      }, 100);
+    };
 
-      // Set video width
-      webcamRef.current.video.width = videoWidth;
-      webcamRef.current.video.height = videoHeight;
+    const detect = async (net) => {
+      if (
+        typeof webcamRef.current !== "undefined" &&
+        webcamRef.current !== null &&
+        webcamRef.current.video.readyState === 4
+      ) {
+        const video = webcamRef.current.video;
+        const videoWidth = webcamRef.current.video.videoWidth;
+        const videoHeight = webcamRef.current.video.videoHeight;
 
-      // Make Detections
-      const pose = await net.estimateSinglePose(video);
-      console.log(pose);
+        webcamRef.current.video.width = videoWidth;
+        webcamRef.current.video.height = videoHeight;
 
-      drawCanvas(pose, video, videoWidth, videoHeight, canvasRef);
-    }
-  };
-
-  const drawCanvas = (pose, video, videoWidth, videoHeight, canvas) => {
-    const ctx = canvas.current.getContext("2d");
-    canvas.current.width = videoWidth;
-    canvas.current.height = videoHeight;
-  
-    drawKeypoints(pose["keypoints"], 0.6, ctx);
-    drawSkeleton(pose["keypoints"], 0.7, ctx);
-  
-    // Find the keypoints for the shoulders
-    const leftShoulder = pose["keypoints"].find((point) => point.part === "leftShoulder");
-    const rightShoulder = pose["keypoints"].find((point) => point.part === "rightShoulder");
-  
-    // Find the keypoints for the hips
-    const leftHip = pose["keypoints"].find((point) => point.part === "leftHip");
-    const rightHip = pose["keypoints"].find((point) => point.part === "rightHip");
-  
-    // Draw a line to represent the sternum bone
-    if (leftShoulder && rightShoulder && leftHip && rightHip) {
-      const sternumX = (leftShoulder.position.x + rightShoulder.position.x + leftHip.position.x + rightHip.position.x) / 4;
-      const sternumY = (leftShoulder.position.y + rightShoulder.position.y + leftHip.position.y + rightHip.position.y) / 4;
-  
-      ctx.beginPath();
-      ctx.moveTo((leftShoulder.position.x + rightShoulder.position.x) / 2, (leftShoulder.position.y + rightShoulder.position.y) / 2);
-      ctx.lineTo(sternumX, sternumY);
-      ctx.lineTo((leftHip.position.x + rightHip.position.x) / 2, (leftHip.position.y + rightHip.position.y) / 2);
-  
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "red";
-      ctx.stroke();
-    }
-  };
-  
-  
-  
-  runPosenet();
+        const pose = await net.estimateSinglePose(video);
+        drawCanvas(pose, videoWidth, videoHeight);
+      }
+    };
+    const drawCanvas = (pose, videoWidth, videoHeight) => {
+      const ctx = canvasRef.current.getContext("2d");
+      canvasRef.current.width = videoWidth;
+      canvasRef.current.height = videoHeight;
+    
+      drawKeypoints(pose["keypoints"], 0.6, ctx);
+      drawSkeleton(pose["keypoints"], 0.7, ctx);
+    
+      const keypointsContainer = document.getElementById("keypoints-container");
+      keypointsContainer.innerHTML = "";
+    
+      const leftHip = pose.keypoints.find((kp) => kp.part === "leftHip");
+      const rightHip = pose.keypoints.find((kp) => kp.part === "rightHip");
+    
+      if (leftHip && rightHip) {
+        const sternumX = (leftHip.position.x + rightHip.position.x) / 2;
+        const sternumY = (leftHip.position.y + rightHip.position.y) / 2;
+    
+        // Draw a line segment for the sternum bone
+        const noseKeypoint = pose.keypoints.find((kp) => kp.part === "nose");
+        if (noseKeypoint) {
+          const noseX = noseKeypoint.position.x;
+          const noseY = noseKeypoint.position.y;
+    
+          ctx.beginPath();
+          ctx.moveTo(noseX, noseY);
+          ctx.lineTo(sternumX, sternumY);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "white";
+          ctx.stroke();
+        }
+    
+        // Display sternum coordinates in the keypoints container
+        const sternumDiv = document.createElement("div");
+        sternumDiv.innerHTML = `Sternum: (${sternumX.toFixed(2)}, ${sternumY.toFixed(2)})`;
+        sternumDiv.style.color = "white";
+        keypointsContainer.appendChild(sternumDiv);
+      }
+    
+      // Display other keypoints in the keypoints container
+      for (let i = 0; i < pose.keypoints.length; i++) {
+        const keypoint = pose.keypoints[i];
+    
+        if (keypoint.part === "leftHip" || keypoint.part === "rightHip") {
+          continue;
+        }
+    
+        const { y, x } = keypoint.position;
+    
+        const keypointDiv = document.createElement("div");
+        keypointDiv.innerHTML = `${keypoint.part}: (${x.toFixed(2)}, ${y.toFixed(2)})`;
+        keypointDiv.style.color = "white";
+        keypointsContainer.appendChild(keypointDiv);
+      }
+    };
+    
+    runPosenet();
+  }, []);
 
   return (
     <div className="App">
@@ -102,7 +110,7 @@ function App() {
             left: 0,
             right: 0,
             textAlign: "center",
-            zindex: 9,
+            zIndex: 9,
             width: 640,
             height: 480,
           }}
@@ -117,9 +125,20 @@ function App() {
             left: 0,
             right: 0,
             textAlign: "center",
-            zindex: 9,
+            zIndex: 9,
             width: 640,
             height: 480,
+          }}
+        />
+
+        <div
+          id="keypoints-container"
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            padding: "10px",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
           }}
         />
       </header>
