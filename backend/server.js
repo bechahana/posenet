@@ -11,9 +11,9 @@ app.use(express.json());
 // MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://bechahana:BME2023@poseestimation.ede2ffl.mongodb.net/';
 mongoose.connect(mongoURI, {
-  useNewUrlParser: true, // useNewUrlParser is no longer needed, but it's harmless to keep it
-  useUnifiedTopology: true, // useUnifiedTopology is no longer needed, but it's harmless to keep it
-  serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of the default 30 seconds
+  useNewUrlParser: true, 
+  useUnifiedTopology: true, 
+  serverSelectionTimeoutMS: 5000,
 })
 .then(() => {
   console.log('Connected to MongoDB');
